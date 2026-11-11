@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Grabadora</title>
-<meta name="description" content="Grabadora de los Diccionarios Parlantes: grabe palabras y ejemplos en video para el diccionario de su lengua.">
+<meta name="description" content="Grabadora de los Diccionarios Parlantes: grabe palabras y ejemplos en video o solo en audio para el diccionario de su lengua.">
 <meta name="theme-color" content="#1E2433">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -73,6 +73,15 @@ ol.words li a{display:flex;align-items:center;gap:12px;padding:10px 0;border-bot
 .stage{position:relative;width:min(62vw,260px);aspect-ratio:3/4;margin:4px auto 10px;border-radius:16px;overflow:hidden;background:#000}
 .stage video{width:100%;height:100%;object-fit:cover;display:block}
 .stage video.mirror{transform:scaleX(-1)}
+.stage.audio{aspect-ratio:3/2;background:var(--ink)}
+.stage.audio video{display:none}
+.stage .mic{display:none;position:absolute;inset:0;place-items:center;color:var(--cotton)}
+.stage.audio .mic{display:grid}
+.stage .mic svg{width:56px;height:56px}
+.media{display:flex;justify-content:center;gap:6px;margin:10px 0 2px}
+.media button{border:1.5px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 14px;font-size:.9rem;cursor:pointer}
+.media button[aria-pressed="true"]{background:var(--ink);color:var(--cotton);border-color:var(--ink)}
+.media button[disabled]{opacity:.45;cursor:default}
 .stage .live{position:absolute;top:8px;left:8px;background:var(--grana);color:#fff;border-radius:999px;padding:2px 10px;font-size:.85rem;font-weight:700;display:none}
 .stage.on .live{display:block}
 .say{text-align:center;margin:4px 0 2px}
@@ -107,11 +116,12 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-10';
+const VERSION = '2026-11-10.2';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
 const slugOf = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const ICON_MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>';
 const stamp = (d = new Date()) => { const p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
 
@@ -133,7 +143,9 @@ const db = (() => { let p; const open = () => p || (p = new Promise((ok, ko) => 
       t.oncomplete = () => ok(out); t.onerror = () => ko(t.error); })),
   }; })();
 
-let CONFIG = null, LIST = null, S = null;           // S: {name, slug, code, dict, dicts:[{code, title}]}
+let CONFIG = null, LIST = null, S = null;           // S: {name, slug, code, dict, dicts:[{code, title, new_only}], new_only, media}
+// new_only: the code opens the dictionary for new words only (ACCESS_CODE_NEW in the script). The
+// script then sends no word list (entries: []), so the page shows only the words added on this phone.
 let TAKES = new Map(), LOCAL = new Map();            // copies in memory of the two stores, for the current dictionary
 const DICT = () => S && S.dict;
 
@@ -181,25 +193,35 @@ function chrome(){
 }
 function bar(html){ $('#bar').hidden = !html; $('#barIn').innerHTML = html || ''; }
 
-// ---------- camera ----------
+// ---------- camera and microphone ----------
+// Each recording is a video, or sound only when the speaker chooses «Solo audio» (kept in the
+// settings, S.media; changed at any time on the recording screen). The choice is saved with each
+// recording (take.media) and in the word's record.
+const MEDIA = () => (S && S.media) || 'video';
+let STREAM_KIND = null;
 let STREAM = null, REC = null, CHUNKS = [], T0 = 0, TIMER = null, PENDING = null, TRIES = {};
 let AUDIOCTX = null, METER = null;
 const MIME = ['video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
   .find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
-const extOf = mime => /mp4/.test(mime) ? 'mp4' : 'webm';
+const MIME_AUDIO = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/webm;codecs=opus', 'audio/webm']
+  .find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+// file extension: .mp4 / .webm for video, .m4a / .webm for sound only
+const extOf = mime => /^audio\/mp4/.test(mime) ? 'm4a' : /mp4/.test(mime) ? 'mp4' : 'webm';
 async function camera(){
-  if (STREAM) return STREAM;
+  if (STREAM && STREAM_KIND === MEDIA()) return STREAM;
+  if (STREAM) stopCamera();
   // the phone's own sound processing (echo cancelling, noise suppression, automatic gain) is
   // switched off: it changes the voice, which the dictionary must keep as it is
   STREAM = await navigator.mediaDevices.getUserMedia({
-    video: {facingMode:'user', width:{ideal:720}, height:{ideal:960}, frameRate:{ideal:30}},
+    video: MEDIA() === 'audio' ? false : {facingMode:'user', width:{ideal:720}, height:{ideal:960}, frameRate:{ideal:30}},
     audio: {echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+  STREAM_KIND = MEDIA();
   meter(STREAM);
   return STREAM;
 }
 function stopCamera(){
   if (REC && REC.state !== 'inactive') try { REC.stop(); } catch(_){}
-  if (STREAM) STREAM.getTracks().forEach(t => t.stop()); STREAM = null;
+  if (STREAM) STREAM.getTracks().forEach(t => t.stop()); STREAM = null; STREAM_KIND = null;
   if (METER) cancelAnimationFrame(METER); METER = null;
   if (AUDIOCTX) AUDIOCTX.close().catch(()=>{}); AUDIOCTX = null;
 }
@@ -235,6 +257,15 @@ function renderList(){
   if (q) list = list.filter(w => fold(w.headword).includes(q) || fold(w.gloss_es).includes(q));
   const main = $('#main');
   const keep = document.activeElement && document.activeElement.id === 'q';
+  if (S.new_only){
+    // new words only: no dictionary list, just the words this speaker added
+    main.innerHTML = `<h2>Sus palabras</h2>
+      <p class="note">Grabe palabras de su lengua: pulse «+ Palabra nueva», escriba la palabra y su traducción, y grábela.</p>
+      ${words.length ? `<ol class="words">${words.map(w => { const st = statusOf(w);
+        return `<li><a href="#p/${encodeURIComponent(w.id)}"><span class="st ${st==='done'?'done':st==='part'?'part':''}">${st==='done'?'✓':st==='part'?'½':''}</span>
+          <span class="w"><div class="hw">${esc(w.headword)}</div><div class="gl">${esc(w.gloss_es)}</div></span></a></li>`; }).join('')}</ol>`
+        : '<p class="note">Todavía no ha agregado palabras.</p>'}`;
+  } else {
   main.innerHTML = `
     <input class="search" id="q" type="search" placeholder="Buscar en ${esc(LIST.dictionary.language_name)} o español" value="${esc(($('#q')||{}).value||'')}" autocomplete="off">
     <div class="tabs" role="group" aria-label="Mostrar">
@@ -247,6 +278,7 @@ function renderList(){
       : `<p class="note">${q ? 'Ninguna palabra coincide. Si no está en el diccionario, agréguela con «Palabra nueva».' : 'No hay palabras en este grupo.'}</p>`}`;
   const qi = $('#q'); qi.oninput = renderList; if (keep){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
   main.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { FILTER = b.dataset.f; renderList(); });
+  }
   const n = unsent().length;
   bar(`<a class="btn ghost" href="#nueva" style="text-decoration:none">+ Palabra nueva</a>
        <a class="btn${n?'':' ghost'}" href="#enviar" style="text-decoration:none">Enviar${n?` (${n})`:''}</a>`);
@@ -262,7 +294,11 @@ async function renderWord(id, at){
   bar('');
   $('#main').innerHTML = `
     <a class="chip" href="#" style="text-decoration:none;display:inline-block">‹ Palabras</a>
-    <div class="stage" id="stage"><video id="vid" playsinline muted class="mirror"></video><span class="live" id="live">● 0:00</span></div>
+    <div class="media" role="group" aria-label="Grabar">
+      <button type="button" data-m="video" aria-pressed="${MEDIA()==='video'}">Video</button>
+      <button type="button" data-m="audio" aria-pressed="${MEDIA()==='audio'}">Solo audio</button></div>
+    <div class="stage${MEDIA()==='audio'?' audio':''}" id="stage"><video id="vid" playsinline muted class="mirror"></video>
+      <div class="mic" aria-hidden="true">${ICON_MIC}</div><span class="live" id="live">● 0:00</span></div>
     <div class="meter"><i></i></div>
     <div class="say"><div class="what">${esc(s.label)} · ${i+1} de ${slots.length}</div>
       <div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div></div>
@@ -277,14 +313,26 @@ async function renderWord(id, at){
     </div>
     ${w.is_new ? '<p class="note">Palabra nueva: su texto lo revisará el equipo del diccionario antes de publicarla.</p>' : ''}`;
   $('#main').querySelectorAll('.slots li').forEach(li => li.onclick = () => go(`#p/${encodeURIComponent(id)}/${li.dataset.k}`));
+  $('#main').querySelectorAll('.media button').forEach(b => b.onclick = async () => {
+    if (b.dataset.m === MEDIA() || (REC && REC.state === 'recording') || PENDING) return;
+    S.media = b.dataset.m; await db.put('kv', 'settings', S); stopCamera();
+    go(`#p/${encodeURIComponent(id)}/${CUR.i}`, true);
+  });
   $('#addEx').onclick = () => go(`#ejemplo/${encodeURIComponent(id)}`);
   if ($('#editTx')) $('#editTx').onclick = () => go(`#texto/${encodeURIComponent(id)}`);
   if (t) showSaved(w, slots, i, t); else await showLive(w, slots, i);
 }
+// the Video / Solo audio choice can be changed only while nothing is being recorded or reviewed
+const lockMedia = on => document.querySelectorAll('.media button').forEach(b => b.disabled = on);
+const stageAs = media => { const st = $('#stage'); if (st) st.classList.toggle('audio', media === 'audio'); };
 async function showLive(w, slots, i){
   const ctl = $('#ctl'), v = $('#vid');
+  lockMedia(false); stageAs(MEDIA());
   try { v.srcObject = await camera(); v.muted = true; v.classList.add('mirror'); await v.play().catch(()=>{}); }
-  catch(e){ ctl.innerHTML = `<div class="msg err">No se pudo abrir la cámara y el micrófono. Permita el acceso a la cámara y al micrófono para esta página (en el candado junto a la dirección) y vuelva a intentarlo.</div>
+  catch(e){ ctl.innerHTML = MEDIA() === 'audio'
+    ? `<div class="msg err">No se pudo abrir el micrófono. Permita el acceso al micrófono para esta página (en el candado junto a la dirección) y vuelva a intentarlo.</div>
+    <button class="btn wide" type="button" onclick="route()">Intentar de nuevo</button>`
+    : `<div class="msg err">No se pudo abrir la cámara y el micrófono. Permita el acceso a la cámara y al micrófono para esta página (en el candado junto a la dirección) y vuelva a intentarlo.</div>
     <button class="btn wide" type="button" onclick="route()">Intentar de nuevo</button>`; return; }
   ctl.innerHTML = `<button class="btn rec wide" type="button" id="recB">● Grabar</button>
     <p class="note" style="text-align:center">Pulse «Grabar», diga el texto y pulse «Detener».</p>`;
@@ -292,12 +340,16 @@ async function showLive(w, slots, i){
 }
 function startRec(w, slots, i){
   const s = slots[i]; const key = `${w.id}|${s.role}`; TRIES[key] = (TRIES[key] || 0) + 1;
-  CHUNKS = []; PEAK = 0;
-  REC = new MediaRecorder(STREAM, MIME ? {mimeType: MIME, videoBitsPerSecond: 1_500_000, audioBitsPerSecond: 128_000} : {});
+  CHUNKS = []; PEAK = 0; lockMedia(true);
+  const media = MEDIA();
+  REC = media === 'audio'
+    ? new MediaRecorder(STREAM, MIME_AUDIO ? {mimeType: MIME_AUDIO, audioBitsPerSecond: 128_000} : {})
+    : new MediaRecorder(STREAM, MIME ? {mimeType: MIME, videoBitsPerSecond: 1_500_000, audioBitsPerSecond: 128_000} : {});
   REC.ondataavailable = e => { if (e.data && e.data.size) CHUNKS.push(e.data); };
   REC.onstop = () => { clearInterval(TIMER); $('#stage') && $('#stage').classList.remove('on');
     const dur = (performance.now() - T0) / 1000;
-    PENDING = {blob: new Blob(CHUNKS, {type: (REC.mimeType || MIME || 'video/webm').split(';')[0]}), duration_s: Math.round(dur * 10) / 10, peak: PEAK};
+    const type = (REC.mimeType || (media === 'audio' ? MIME_AUDIO || 'audio/webm' : MIME || 'video/webm')).split(';')[0];
+    PENDING = {blob: new Blob(CHUNKS, {type}), media, duration_s: Math.round(dur * 10) / 10, peak: PEAK};
     review(w, slots, i); };
   REC.start(250); T0 = performance.now();
   $('#stage').classList.add('on');
@@ -323,11 +375,12 @@ function review(w, slots, i){
     <button class="btn okb wide" type="button" id="keep" style="margin-top:10px">✓ Me quedo con esta</button>`;
   playBlob(p.blob);
   $('#pl').onclick = () => playBlob(p.blob);
+  stageAs(p.media);
   $('#again').onclick = () => { PENDING = null; $('#out').innerHTML = ''; showLive(w, slots, i); };
   $('#keep').onclick = async () => {
     $('#keep').disabled = true;
     const s = slots[i], key = `${DICT()}|${w.id}|${s.role}`;
-    const take = {dict: DICT(), entry: w.id, role: s.role, text: s.text, blob: p.blob, mime: p.blob.type, ext: extOf(p.blob.type),
+    const take = {dict: DICT(), entry: w.id, role: s.role, text: s.text, blob: p.blob, media: p.media, mime: p.blob.type, ext: extOf(p.blob.type),
       duration_s: p.duration_s, peak: Math.round(p.peak * 1000) / 1000, recorded_at: new Date().toISOString(), stamp: stamp(),
       tries: TRIES[`${w.id}|${s.role}`] || 1, sent: false};
     try { await db.put('takes', key, take); TAKES.set(key, take); }
@@ -339,9 +392,9 @@ function review(w, slots, i){
   };
 }
 function showSaved(w, slots, i, t){
-  stopCamera();
+  stopCamera(); lockMedia(false); stageAs(t.media || 'video');
   const v = $('#vid'); v.classList.remove('mirror');
-  $('#ctl').innerHTML = `<div class="msg ok" style="text-align:center">✓ Grabación guardada${t.sent ? ' y enviada' : '; falta enviarla'}.</div>
+  $('#ctl').innerHTML = `<div class="msg ok" style="text-align:center">✓ Grabación${(t.media || 'video') === 'audio' ? ' (solo audio)' : ''} guardada${t.sent ? ' y enviada' : '; falta enviarla'}.</div>
     <div class="row">${t.blob ? '<button class="btn ghost" type="button" id="pl">▶ Escuchar</button>' : ''}
     <button class="btn ghost" type="button" id="redo">↺ Grabar de nuevo</button></div>
     ${slots.some(x => !takeOf(w.id, x.role)) ? '' : '<a class="btn wide" href="#" style="margin-top:10px;text-decoration:none">Palabra completa · volver a la lista</a>'}`;
@@ -431,7 +484,8 @@ function recordOf(id){
     texts: {headword: w.headword, gloss_es: w.gloss_es, examples: w.examples.map(x => ({text: x.text, translation_es: x.translation_es}))},
     added_examples: w.is_new ? [] : (w.added || []).map(x => ({text: x.text, translation_es: x.translation_es})),
     recordings: Object.fromEntries(slotsOf(w).map(s => [s.role, takeOf(id, s.role)]).filter(([, t]) => t)
-      .map(([r, t]) => [r, {file: fileName(t), text_shown: t.text, recorded_at: t.recorded_at, duration_s: t.duration_s, peak: t.peak, tries: t.tries, mime: t.mime}])),
+      .map(([r, t]) => [r, {file: fileName(t), media: t.media || 'video', text_shown: t.text, recorded_at: t.recorded_at, duration_s: t.duration_s, peak: t.peak, tries: t.tries, mime: t.mime}])),
+    access: S.new_only ? 'new words only' : 'word list and new words',
     device: navigator.userAgent, app_version: VERSION, written_at: new Date().toISOString()};
 }
 async function renderSend(){
@@ -493,7 +547,7 @@ async function renderSetup(){
   $('#main').innerHTML = `
     ${first ? '' : '<a class="chip" href="#" style="text-decoration:none;display:inline-block">‹ Palabras</a>'}
     <h2>${first ? 'Bienvenida, bienvenido' : 'Ajustes'}</h2>
-    ${first ? '<p>Con esta página puede grabar en video palabras y ejemplos de su lengua para el diccionario parlante. Lo grabado se guarda en el teléfono y se envía cuando usted lo decide.</p>' : ''}
+    ${first ? '<p>Con esta página puede grabar palabras y ejemplos de su lengua para el diccionario parlante, en video o solo en audio. Lo grabado se guarda en el teléfono y se envía cuando usted lo decide.</p>' : ''}
     <form id="fm">
       <label class="f" for="nm">Su nombre</label>
       <input class="f" id="nm" required autocomplete="name" value="${esc(S ? S.name : '')}">
@@ -530,7 +584,8 @@ async function renderSetup(){
     const dict = dicts.length > 1 ? sel.value : dicts[0].code;
     if (S && S.slug !== slugOf(name) && TAKES.size && unsent().length){
       $('#res').innerHTML = '<div class="msg err">Hay grabaciones por enviar con el nombre anterior. Envíelas antes de cambiar el nombre.</div>'; return; }
-    S = {name, slug: slugOf(name), code, dict, dicts}; await db.put('kv', 'settings', S);
+    const new_only = !!(dicts.find(d => d.code === dict) || {}).new_only;
+    S = {name, slug: slugOf(name), code, dict, dicts, new_only, media: (S && S.media) || 'video'}; await db.put('kv', 'settings', S);
     try { await openDict(); } catch(e){ $('#res').innerHTML = '<div class="msg err">No se pudo traer la lista de palabras. Revise la conexión y vuelva a intentarlo.</div>'; return; }
     go('', true);
   };
@@ -567,7 +622,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && !(R
 
 (async () => {
   try {
-    if (!window.MediaRecorder || !navigator.mediaDevices){ $('#main').innerHTML = '<div class="msg err">Este navegador no puede grabar video. Abra la página en Chrome.</div>'; return; }
+    if (!window.MediaRecorder || !navigator.mediaDevices){ $('#main').innerHTML = '<div class="msg err">Este navegador no puede grabar. Abra la página en Chrome.</div>'; return; }
     CONFIG = await fetch('config.json').then(r => r.json());
     S = (await db.get('kv', 'settings')) || null;
     if (S) try { await openDict(); } catch(_){ S = null; }   // no list on the phone yet: set up again

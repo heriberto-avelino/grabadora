@@ -1,7 +1,7 @@
 {
  "name": "Grabadora · Diccionarios Parlantes",
  "short_name": "Grabadora",
- "description": "Grabe en video palabras y ejemplos para el diccionario parlante de su lengua.",
+ "description": "Grabe en video o en audio palabras y ejemplos para el diccionario parlante de su lengua.",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",
