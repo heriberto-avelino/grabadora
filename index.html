@@ -116,7 +116,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-10.2';
+const VERSION = '2026-11-10.3';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -192,6 +192,11 @@ function chrome(){
   who.onclick = () => go('#ajustes');
 }
 function bar(html){ $('#bar').hidden = !html; $('#barIn').innerHTML = html || ''; }
+// on the recording screen, while nothing is being recorded or reviewed: back to the list, and «Enviar»,
+// so that the speaker sees at once that what was kept still has to be sent
+function wordBar(){ const n = unsent().length;
+  bar(`<a class="btn ghost" href="#" style="text-decoration:none">‹ Palabras</a>
+       <a class="btn${n?'':' ghost'}" href="#enviar" style="text-decoration:none">Enviar${n?` (${n})`:''}</a>`); }
 
 // ---------- camera and microphone ----------
 // Each recording is a video, or sound only when the speaker chooses «Solo audio» (kept in the
@@ -327,7 +332,7 @@ const lockMedia = on => document.querySelectorAll('.media button').forEach(b => 
 const stageAs = media => { const st = $('#stage'); if (st) st.classList.toggle('audio', media === 'audio'); };
 async function showLive(w, slots, i){
   const ctl = $('#ctl'), v = $('#vid');
-  lockMedia(false); stageAs(MEDIA());
+  lockMedia(false); stageAs(MEDIA()); wordBar();
   try { v.srcObject = await camera(); v.muted = true; v.classList.add('mirror'); await v.play().catch(()=>{}); }
   catch(e){ ctl.innerHTML = MEDIA() === 'audio'
     ? `<div class="msg err">No se pudo abrir el micrófono. Permita el acceso al micrófono para esta página (en el candado junto a la dirección) y vuelva a intentarlo.</div>
@@ -340,7 +345,7 @@ async function showLive(w, slots, i){
 }
 function startRec(w, slots, i){
   const s = slots[i]; const key = `${w.id}|${s.role}`; TRIES[key] = (TRIES[key] || 0) + 1;
-  CHUNKS = []; PEAK = 0; lockMedia(true);
+  CHUNKS = []; PEAK = 0; lockMedia(true); bar('');
   const media = MEDIA();
   REC = media === 'audio'
     ? new MediaRecorder(STREAM, MIME_AUDIO ? {mimeType: MIME_AUDIO, audioBitsPerSecond: 128_000} : {})
@@ -392,7 +397,7 @@ function review(w, slots, i){
   };
 }
 function showSaved(w, slots, i, t){
-  stopCamera(); lockMedia(false); stageAs(t.media || 'video');
+  stopCamera(); lockMedia(false); stageAs(t.media || 'video'); wordBar();
   const v = $('#vid'); v.classList.remove('mirror');
   $('#ctl').innerHTML = `<div class="msg ok" style="text-align:center">✓ Grabación${(t.media || 'video') === 'audio' ? ' (solo audio)' : ''} guardada${t.sent ? ' y enviada' : '; falta enviarla'}.</div>
     <div class="row">${t.blob ? '<button class="btn ghost" type="button" id="pl">▶ Escuchar</button>' : ''}
