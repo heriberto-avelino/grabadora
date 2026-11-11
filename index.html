@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grabadora</title>
+<meta name="description" content="Grabadora de los Diccionarios Parlantes: grabe palabras y ejemplos en video para el diccionario de su lengua.">
+<meta name="theme-color" content="#1E2433">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{
+  --ink:#1E2433; --cotton:#FBFBF9; --grana:#B3122E; --grana-soft:#F7E4E7; --ok:#1F7A4D; --ok-soft:#E3F2EA;
+  --maize:#B97F10; --maize-soft:#FBF0D9; --stone:#6B7280; --rule:#E3E4E8; --card:#FFFFFF; --focus:#2F6FEB;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#ECEDEF; --cotton:#151922; --card:#1C212C; --grana:#E2445E; --grana-soft:#3A1D25; --ok:#4CC38A; --ok-soft:#173326;
+    --maize:#E8B649; --maize-soft:#3A2F15; --stone:#A3A9B6; --rule:#2B3140; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#ECEDEF; --cotton:#151922; --card:#1C212C; --grana:#E2445E; --grana-soft:#3A1D25; --ok:#4CC38A; --ok-soft:#173326;
+  --maize:#E8B649; --maize-soft:#3A2F15; --stone:#A3A9B6; --rule:#2B3140; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--cotton);color:var(--ink);font:17px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+.wrap{max-width:680px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{position:sticky;top:0;z-index:5;background:var(--cotton);border-bottom:1px solid var(--rule)}
+.top{display:flex;align-items:center;gap:12px;padding:12px 0 10px}
+.top .t{flex:1;min-width:0}
+.top h1{margin:0;font-size:1.15rem;line-height:1.2}
+.top p{margin:2px 0 0;color:var(--stone);font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{color:var(--ink);border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 12px;font-size:.88rem;cursor:pointer}
+main{padding:14px 0 120px}
+h2{font-size:1.4rem;margin:6px 0 10px}
+h3{font-size:1rem;margin:22px 0 8px;color:var(--stone);font-weight:650}
+p.note{color:var(--stone);margin:6px 0 12px;font-size:.95rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:12px 16px;
+  font-weight:650;cursor:pointer;background:var(--ink);color:var(--cotton);min-height:48px}
+.btn.rec{background:var(--grana);color:#fff}
+.btn.okb{background:var(--ok);color:#fff}
+.btn.ghost{background:var(--card);color:var(--ink);border:1.5px solid var(--rule)}
+.btn[disabled]{opacity:.45;cursor:default}
+.btn.wide{width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row > .btn{flex:1 1 0}
+label.f{display:block;margin:14px 0 4px;font-weight:600}
+input.f,select.f,textarea.f{width:100%;border:1.5px solid var(--rule);background:var(--card);border-radius:10px;padding:11px 12px}
+textarea.f{min-height:64px;resize:vertical}
+.msg{padding:10px 12px;border-radius:10px;margin:12px 0;font-size:.95rem}
+.msg.err{background:var(--grana-soft);color:var(--grana)}
+.msg.ok{background:var(--ok-soft);color:var(--ok)}
+.msg.warn{background:var(--maize-soft);color:var(--maize)}
+.search{width:100%;border:1.5px solid var(--rule);background:var(--card);border-radius:12px;padding:11px 12px;margin:0 0 8px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:0 0 8px;scrollbar-width:none}
+.tabs button{flex:none;border:1.5px solid var(--rule);background:var(--card);border-radius:999px;padding:6px 12px;font-size:.9rem;cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--ink);color:var(--cotton);border-color:var(--ink)}
+ol.words{list-style:none;margin:0;padding:0}
+ol.words li a{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule);text-decoration:none;color:inherit}
+.st{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:.85rem;font-weight:700;border:2px solid var(--rule);color:var(--stone)}
+.st.part{border-color:var(--maize);color:var(--maize)}
+.st.done{border-color:var(--ok);background:var(--ok);color:#fff}
+.w{flex:1;min-width:0}
+.w .hw{font-size:1.15rem;font-weight:650}
+.w .gl{color:var(--stone);font-size:.93rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:.75rem;border-radius:6px;padding:1px 6px;background:var(--maize-soft);color:var(--maize);margin-left:6px;font-weight:600;vertical-align:middle}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--cotton);border-top:1px solid var(--rule);padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+/* recording */
+.stage{position:relative;width:min(62vw,260px);aspect-ratio:3/4;margin:4px auto 10px;border-radius:16px;overflow:hidden;background:#000}
+.stage video{width:100%;height:100%;object-fit:cover;display:block}
+.stage video.mirror{transform:scaleX(-1)}
+.stage .live{position:absolute;top:8px;left:8px;background:var(--grana);color:#fff;border-radius:999px;padding:2px 10px;font-size:.85rem;font-weight:700;display:none}
+.stage.on .live{display:block}
+.say{text-align:center;margin:4px 0 2px}
+.say .what{color:var(--stone);font-size:.9rem}
+.say .text{font-size:clamp(1.6rem,7.5vw,2.4rem);font-weight:750;line-height:1.15;word-break:break-word}
+.say .text.long{font-size:clamp(1.15rem,5vw,1.5rem);font-weight:650}
+.controls{margin:12px 0 4px}
+.slots{list-style:none;margin:16px 0 0;padding:0;border-top:2px solid var(--ink)}
+.slots li{display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid var(--rule);cursor:pointer;border-radius:8px}
+.slots li[aria-current="true"]{background:var(--grana-soft)}
+.slots .k{font-size:.82rem;color:var(--stone)}
+.slots .x{font-weight:600;word-break:break-word}
+.meter{height:6px;border-radius:3px;background:var(--rule);overflow:hidden;margin:8px auto 0;width:min(62vw,260px)}
+.meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
+.prog{height:10px;border-radius:5px;background:var(--rule);overflow:hidden;margin:12px 0}
+.prog i{display:block;height:100%;width:0;background:var(--ok)}
+dl.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:12px 0}
+dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
+</style>
+</head>
+<body>
+<header><div class="wrap"><div class="top">
+  <div class="t"><h1 id="h1">Grabadora</h1><p id="sub">Diccionarios Parlantes</p></div>
+  <button class="chip" id="who" type="button" hidden></button>
+</div></div></header>
+<main class="wrap" id="main"><p class="note">Abriendo…</p></main>
+<div class="bar" id="bar" hidden><div class="wrap row" id="barIn"></div></div>
+
+<script>
+// Grabadora de los Diccionarios Parlantes. One page, no build step.
+// config.json holds only the address of the team's Google script. Nothing of the dictionaries is in
+// this page: after the access code is checked, the script hands out the dictionaries that code opens
+// and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
+// copy of the list for use without a connection.
+const VERSION = '2026-11-10';
+const $ = s => document.querySelector(s);
+const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
+const slugOf = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const stamp = (d = new Date()) => { const p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; };
+
+// ---------- storage on the phone (IndexedDB) ----------
+// kv: settings · takes: accepted recordings, key "dict|entry|role" · local: words added on this phone and
+// examples added to existing words, key "dict|entry"
+const db = (() => { let p; const open = () => p || (p = new Promise((ok, ko) => {
+    const r = indexedDB.open('grabadora', 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('kv'); d.createObjectStore('takes'); d.createObjectStore('local'); };
+    r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); }));
+  const tx = (store, mode, f) => open().then(d => new Promise((ok, ko) => { const t = d.transaction(store, mode);
+    const q = f(t.objectStore(store)); t.oncomplete = () => ok(q && q.result); t.onerror = () => ko(t.error); t.onabort = () => ko(t.error); }));
+  return {
+    get: (s, k) => tx(s, 'readonly', o => o.get(k)),
+    put: (s, k, v) => tx(s, 'readwrite', o => o.put(v, k)),
+    del: (s, k) => tx(s, 'readwrite', o => o.delete(k)),
+    all: s => open().then(d => new Promise((ok, ko) => { const out = []; const t = d.transaction(s, 'readonly');
+      t.objectStore(s).openCursor().onsuccess = e => { const c = e.target.result; if (c){ out.push([c.key, c.value]); c.continue(); } };
+      t.oncomplete = () => ok(out); t.onerror = () => ko(t.error); })),
+  }; })();
+
+let CONFIG = null, LIST = null, S = null;           // S: {name, slug, code, dict, dicts:[{code, title}]}
+let TAKES = new Map(), LOCAL = new Map();            // copies in memory of the two stores, for the current dictionary
+const DICT = () => S && S.dict;
+
+async function loadState(){
+  TAKES = new Map((await db.all('takes')).filter(([k]) => k.startsWith(DICT() + '|')));
+  LOCAL = new Map((await db.all('local')).filter(([k]) => k.startsWith(DICT() + '|')));
+}
+
+// ---------- words ----------
+// a word as the speaker sees it: the list's text, plus what was added on this phone
+function wordOf(id){
+  const base = LIST.entries.find(e => e.id === id);
+  const loc = LOCAL.get(`${DICT()}|${id}`);
+  if (!base && !loc) return null;
+  if (!base) return {...loc, id, is_new: true};
+  return {...base, examples: [...base.examples, ...((loc && loc.added_examples) || [])], added: (loc && loc.added_examples) || []};
+}
+function allWords(){
+  const added = [...LOCAL.values()].filter(v => v.is_new).sort((a,b) => (b.created||'').localeCompare(a.created||''));
+  return [...added.map(v => wordOf(v.id)), ...LIST.entries.map(e => wordOf(e.id))];
+}
+// the recordings a word asks for, in the order of the recording protocol
+function slotsOf(w){
+  const s = [{role:'headword', label:'Palabra', text:w.headword}];
+  if (w.gloss_es) s.push({role:'gloss_es', label:'Traducción', text:w.gloss_es});
+  w.examples.forEach((x, i) => {
+    if (x.text) s.push({role:`example_${i+1}`, label:`Ejemplo ${i+1}`, text:x.text});
+    if (x.translation_es) s.push({role:`translation_${i+1}`, label:`Traducción del ejemplo ${i+1}`, text:x.translation_es});
+  });
+  return s;
+}
+const takeOf = (id, role) => TAKES.get(`${DICT()}|${id}|${role}`);
+function statusOf(w){
+  const s = slotsOf(w), n = s.filter(x => takeOf(w.id, x.role)).length;
+  return n === 0 ? 'none' : n === s.length ? 'done' : 'part';
+}
+const unsent = () => [...TAKES.values()].filter(t => !t.sent);
+
+// ---------- header and bottom bar ----------
+function chrome(){
+  $('#h1').textContent = LIST ? `Grabadora · ${LIST.dictionary.title}` : 'Grabadora';
+  $('#sub').textContent = LIST ? `Diccionario parlante del ${LIST.dictionary.language_name}` : 'Diccionarios Parlantes';
+  const who = $('#who'); who.hidden = !S; if (S) who.textContent = S.name;
+  who.onclick = () => go('#ajustes');
+}
+function bar(html){ $('#bar').hidden = !html; $('#barIn').innerHTML = html || ''; }
+
+// ---------- camera ----------
+let STREAM = null, REC = null, CHUNKS = [], T0 = 0, TIMER = null, PENDING = null, TRIES = {};
+let AUDIOCTX = null, METER = null;
+const MIME = ['video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+  .find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+const extOf = mime => /mp4/.test(mime) ? 'mp4' : 'webm';
+async function camera(){
+  if (STREAM) return STREAM;
+  // the phone's own sound processing (echo cancelling, noise suppression, automatic gain) is
+  // switched off: it changes the voice, which the dictionary must keep as it is
+  STREAM = await navigator.mediaDevices.getUserMedia({
+    video: {facingMode:'user', width:{ideal:720}, height:{ideal:960}, frameRate:{ideal:30}},
+    audio: {echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1}});
+  meter(STREAM);
+  return STREAM;
+}
+function stopCamera(){
+  if (REC && REC.state !== 'inactive') try { REC.stop(); } catch(_){}
+  if (STREAM) STREAM.getTracks().forEach(t => t.stop()); STREAM = null;
+  if (METER) cancelAnimationFrame(METER); METER = null;
+  if (AUDIOCTX) AUDIOCTX.close().catch(()=>{}); AUDIOCTX = null;
+}
+// level meter: green while the voice is well recorded, yellow when quiet, red when too loud
+function meter(stream){
+  try {
+    AUDIOCTX = new (window.AudioContext || window.webkitAudioContext)();
+    const an = AUDIOCTX.createAnalyser(); an.fftSize = 1024;
+    AUDIOCTX.createMediaStreamSource(stream).connect(an);
+    const buf = new Float32Array(an.fftSize);
+    const tick = () => { an.getFloatTimeDomainData(buf); let pk = 0; for (const v of buf) pk = Math.max(pk, Math.abs(v));
+      const el = $('.meter i'); if (el){ el.style.width = Math.min(100, pk * 110) + '%';
+        el.style.background = pk > .97 ? 'var(--grana)' : pk < .05 ? 'var(--maize)' : 'var(--ok)';
+        if (REC && REC.state === 'recording'){ PEAK = Math.max(PEAK, pk); } }
+      METER = requestAnimationFrame(tick); };
+    tick();
+  } catch(_){}
+}
+let PEAK = 0;
+
+// ---------- screens ----------
+let FILTER = 'todas';
+function renderList(){
+  stopCamera();
+  const q = fold(($('#q') || {}).value || '');
+  const words = allWords();
+  const count = k => words.filter(w => statusOf(w) === k).length;
+  let list = words;
+  if (FILTER === 'por') list = list.filter(w => statusOf(w) === 'none');
+  if (FILTER === 'inc') list = list.filter(w => statusOf(w) === 'part');
+  if (FILTER === 'com') list = list.filter(w => statusOf(w) === 'done');
+  if (FILTER === 'nuevas') list = list.filter(w => w.is_new);
+  if (q) list = list.filter(w => fold(w.headword).includes(q) || fold(w.gloss_es).includes(q));
+  const main = $('#main');
+  const keep = document.activeElement && document.activeElement.id === 'q';
+  main.innerHTML = `
+    <input class="search" id="q" type="search" placeholder="Buscar en ${esc(LIST.dictionary.language_name)} o español" value="${esc(($('#q')||{}).value||'')}" autocomplete="off">
+    <div class="tabs" role="group" aria-label="Mostrar">
+      ${[['todas',`Todas ${words.length}`],['por',`Por grabar ${count('none')}`],['inc',`Incompletas ${count('part')}`],['com',`Completas ${count('done')}`],['nuevas',`Nuevas ${words.filter(w=>w.is_new).length}`]]
+        .map(([k,l]) => `<button type="button" data-f="${k}" aria-pressed="${FILTER===k}">${l}</button>`).join('')}
+    </div>
+    ${list.length ? `<ol class="words">${list.map(w => { const st = statusOf(w);
+      return `<li><a href="#p/${encodeURIComponent(w.id)}"><span class="st ${st==='done'?'done':st==='part'?'part':''}">${st==='done'?'✓':st==='part'?'½':''}</span>
+        <span class="w"><div class="hw">${esc(w.headword)}${w.is_new?'<span class="tag">nueva</span>':''}</div><div class="gl">${esc(w.gloss_es)}</div></span></a></li>`; }).join('')}</ol>`
+      : `<p class="note">${q ? 'Ninguna palabra coincide. Si no está en el diccionario, agréguela con «Palabra nueva».' : 'No hay palabras en este grupo.'}</p>`}`;
+  const qi = $('#q'); qi.oninput = renderList; if (keep){ qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
+  main.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { FILTER = b.dataset.f; renderList(); });
+  const n = unsent().length;
+  bar(`<a class="btn ghost" href="#nueva" style="text-decoration:none">+ Palabra nueva</a>
+       <a class="btn${n?'':' ghost'}" href="#enviar" style="text-decoration:none">Enviar${n?` (${n})`:''}</a>`);
+}
+
+let CUR = null;   // {id, i}: the word on screen and the selected recording
+async function renderWord(id, at){
+  const w = wordOf(id); if (!w){ go(''); return; }
+  const slots = slotsOf(w);
+  let i = at != null ? at : slots.findIndex(s => !takeOf(id, s.role)); if (i < 0) i = 0;
+  CUR = {id, i}; PENDING = null;
+  const s = slots[i], t = takeOf(id, s.role);
+  bar('');
+  $('#main').innerHTML = `
+    <a class="chip" href="#" style="text-decoration:none;display:inline-block">‹ Palabras</a>
+    <div class="stage" id="stage"><video id="vid" playsinline muted class="mirror"></video><span class="live" id="live">● 0:00</span></div>
+    <div class="meter"><i></i></div>
+    <div class="say"><div class="what">${esc(s.label)} · ${i+1} de ${slots.length}</div>
+      <div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div></div>
+    <div class="controls" id="ctl"></div>
+    <div id="out"></div>
+    <ul class="slots">${slots.map((x, k) => { const tk = takeOf(id, x.role);
+      return `<li data-k="${k}" aria-current="${k===i}"><span class="st ${tk?'done':''}">${tk?'✓':''}</span>
+        <div class="w"><div class="k">${esc(x.label)}${tk ? (tk.sent ? ' · enviada' : ' · por enviar') : ''}</div><div class="x">${esc(x.text)}</div></div></li>`; }).join('')}</ul>
+    <div class="row" style="margin-top:16px">
+      <button class="btn ghost" type="button" id="addEx">+ Agregar un ejemplo</button>
+      ${w.is_new || (w.added && w.added.length) ? '<button class="btn ghost" type="button" id="editTx">Corregir el texto</button>' : ''}
+    </div>
+    ${w.is_new ? '<p class="note">Palabra nueva: su texto lo revisará el equipo del diccionario antes de publicarla.</p>' : ''}`;
+  $('#main').querySelectorAll('.slots li').forEach(li => li.onclick = () => go(`#p/${encodeURIComponent(id)}/${li.dataset.k}`));
+  $('#addEx').onclick = () => go(`#ejemplo/${encodeURIComponent(id)}`);
+  if ($('#editTx')) $('#editTx').onclick = () => go(`#texto/${encodeURIComponent(id)}`);
+  if (t) showSaved(w, slots, i, t); else await showLive(w, slots, i);
+}
+async function showLive(w, slots, i){
+  const ctl = $('#ctl'), v = $('#vid');
+  try { v.srcObject = await camera(); v.muted = true; v.classList.add('mirror'); await v.play().catch(()=>{}); }
+  catch(e){ ctl.innerHTML = `<div class="msg err">No se pudo abrir la cámara y el micrófono. Permita el acceso a la cámara y al micrófono para esta página (en el candado junto a la dirección) y vuelva a intentarlo.</div>
+    <button class="btn wide" type="button" onclick="route()">Intentar de nuevo</button>`; return; }
+  ctl.innerHTML = `<button class="btn rec wide" type="button" id="recB">● Grabar</button>
+    <p class="note" style="text-align:center">Pulse «Grabar», diga el texto y pulse «Detener».</p>`;
+  $('#recB').onclick = () => startRec(w, slots, i);
+}
+function startRec(w, slots, i){
+  const s = slots[i]; const key = `${w.id}|${s.role}`; TRIES[key] = (TRIES[key] || 0) + 1;
+  CHUNKS = []; PEAK = 0;
+  REC = new MediaRecorder(STREAM, MIME ? {mimeType: MIME, videoBitsPerSecond: 1_500_000, audioBitsPerSecond: 128_000} : {});
+  REC.ondataavailable = e => { if (e.data && e.data.size) CHUNKS.push(e.data); };
+  REC.onstop = () => { clearInterval(TIMER); $('#stage') && $('#stage').classList.remove('on');
+    const dur = (performance.now() - T0) / 1000;
+    PENDING = {blob: new Blob(CHUNKS, {type: (REC.mimeType || MIME || 'video/webm').split(';')[0]}), duration_s: Math.round(dur * 10) / 10, peak: PEAK};
+    review(w, slots, i); };
+  REC.start(250); T0 = performance.now();
+  $('#stage').classList.add('on');
+  TIMER = setInterval(() => { const t = (performance.now() - T0) / 1000; $('#live').textContent = `● ${Math.floor(t/60)}:${String(Math.floor(t%60)).padStart(2,'0')}`;
+    if (t > 60) stopRec(); }, 200);
+  $('#ctl').innerHTML = `<button class="btn wide" type="button" id="stopB">■ Detener</button>`;
+  $('#stopB').onclick = stopRec;
+}
+function stopRec(){ if (REC && REC.state === 'recording') REC.stop(); }
+function playBlob(blob){
+  const v = $('#vid'); v.srcObject = null; v.classList.remove('mirror'); v.muted = false;
+  if (v.dataset.url) URL.revokeObjectURL(v.dataset.url);
+  v.dataset.url = URL.createObjectURL(blob); v.src = v.dataset.url; v.currentTime = 0; v.play().catch(()=>{});
+}
+function review(w, slots, i){
+  const p = PENDING;
+  const warn = p.duration_s < 0.6 ? 'La grabación es muy corta. ¿Se grabó todo?'
+    : p.peak > .97 ? 'La voz llegó demasiado fuerte y puede oírse distorsionada. Aleje un poco el teléfono y grabe otra vez.'
+    : p.peak < .05 ? 'La voz se oye muy baja. Acérquese un poco al teléfono y grabe otra vez.' : '';
+  $('#out').innerHTML = warn ? `<div class="msg warn">${warn}</div>` : '';
+  $('#ctl').innerHTML = `<div class="row"><button class="btn ghost" type="button" id="pl">▶ Escuchar</button>
+    <button class="btn ghost" type="button" id="again">↺ Otra vez</button></div>
+    <button class="btn okb wide" type="button" id="keep" style="margin-top:10px">✓ Me quedo con esta</button>`;
+  playBlob(p.blob);
+  $('#pl').onclick = () => playBlob(p.blob);
+  $('#again').onclick = () => { PENDING = null; $('#out').innerHTML = ''; showLive(w, slots, i); };
+  $('#keep').onclick = async () => {
+    $('#keep').disabled = true;
+    const s = slots[i], key = `${DICT()}|${w.id}|${s.role}`;
+    const take = {dict: DICT(), entry: w.id, role: s.role, text: s.text, blob: p.blob, mime: p.blob.type, ext: extOf(p.blob.type),
+      duration_s: p.duration_s, peak: Math.round(p.peak * 1000) / 1000, recorded_at: new Date().toISOString(), stamp: stamp(),
+      tries: TRIES[`${w.id}|${s.role}`] || 1, sent: false};
+    try { await db.put('takes', key, take); TAKES.set(key, take); }
+    catch(e){ $('#out').innerHTML = '<div class="msg err">No se pudo guardar en el teléfono. ¿Tiene espacio libre?</div>'; $('#keep').disabled = false; return; }
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(_){}
+    PENDING = null;
+    const next = slots.findIndex(x => !takeOf(w.id, x.role));
+    go(next < 0 ? `#p/${encodeURIComponent(w.id)}/${i}` : `#p/${encodeURIComponent(w.id)}/${next}`, true);
+  };
+}
+function showSaved(w, slots, i, t){
+  stopCamera();
+  const v = $('#vid'); v.classList.remove('mirror');
+  $('#ctl').innerHTML = `<div class="msg ok" style="text-align:center">✓ Grabación guardada${t.sent ? ' y enviada' : '; falta enviarla'}.</div>
+    <div class="row">${t.blob ? '<button class="btn ghost" type="button" id="pl">▶ Escuchar</button>' : ''}
+    <button class="btn ghost" type="button" id="redo">↺ Grabar de nuevo</button></div>
+    ${slots.some(x => !takeOf(w.id, x.role)) ? '' : '<a class="btn wide" href="#" style="margin-top:10px;text-decoration:none">Palabra completa · volver a la lista</a>'}`;
+  if (t.blob){ v.muted = false; v.src = URL.createObjectURL(t.blob); $('#pl').onclick = () => playBlob(t.blob); }
+  else $('#out').innerHTML = '<p class="note" style="text-align:center">La grabación ya se envió y se borró de este teléfono para liberar espacio.</p>';
+  $('#redo').onclick = () => { $('#ctl').innerHTML = ''; showLive(w, slots, i); };
+}
+
+// a new word, or an example added to a word
+function renderForm(kind, id){
+  stopCamera(); bar('');
+  const w = id ? wordOf(id) : null;
+  const isText = kind === 'texto';
+  const first = isText && w.is_new;
+  const exs = isText ? (w.is_new ? w.examples : w.added) : [];
+  $('#main').innerHTML = `
+    <a class="chip" href="${id ? '#p/' + encodeURIComponent(id) : '#'}" style="text-decoration:none;display:inline-block">‹ Volver</a>
+    <h2>${kind === 'nueva' ? 'Palabra nueva' : kind === 'ejemplo' ? 'Agregar un ejemplo' : 'Corregir el texto'}</h2>
+    ${kind === 'ejemplo' ? `<p class="note">Para «${esc(w.headword)}» (${esc(w.gloss_es)}).</p>` : ''}
+    ${kind === 'nueva' ? '<p class="note">Escriba la palabra como se escribe en su lengua. El equipo del diccionario revisará la escritura antes de publicarla.</p>' : ''}
+    <form id="fm">
+      ${kind === 'nueva' || first ? `
+        <label class="f" for="hw">Palabra</label><input class="f" id="hw" required autocomplete="off" autocapitalize="none" value="${esc(first ? w.headword : '')}">
+        <label class="f" for="gl">Traducción al español</label><input class="f" id="gl" required autocomplete="off" value="${esc(first ? w.gloss_es : '')}">` : ''}
+      ${kind === 'nueva' || kind === 'ejemplo' ? `
+        <label class="f" for="ex">Ejemplo (una oración con la palabra)</label><textarea class="f" id="ex" ${kind==='ejemplo'?'required':''} autocapitalize="sentences"></textarea>
+        <label class="f" for="tr">Traducción del ejemplo al español</label><textarea class="f" id="tr" ${kind==='ejemplo'?'required':''}></textarea>` : ''}
+      ${isText ? exs.map((x, k) => `
+        <label class="f" for="ex${k}">Ejemplo ${(w.is_new ? 0 : w.examples.length - w.added.length) + k + 1}</label><textarea class="f" id="ex${k}" required>${esc(x.text)}</textarea>
+        <label class="f" for="tr${k}">Traducción del ejemplo</label><textarea class="f" id="tr${k}" required>${esc(x.translation_es)}</textarea>`).join('') : ''}
+      <div id="dup"></div>
+      <button class="btn wide" type="submit" style="margin-top:18px">${kind === 'texto' ? 'Guardar' : 'Seguir: grabar'}</button>
+    </form>
+    ${isText ? '<p class="note">Si cambia el texto de algo ya grabado, vuelva a grabarlo para que el video diga lo que está escrito.</p>' : ''}`;
+  let dupOk = false;
+  $('#fm').onsubmit = async ev => {
+    ev.preventDefault();
+    const val = s => ($(s) ? $(s).value.trim().normalize('NFC') : '');
+    if (kind === 'nueva'){
+      const hw = val('#hw');
+      const same = allWords().filter(x => fold(x.headword) === fold(hw));
+      if (same.length && !dupOk){
+        $('#dup').innerHTML = `<div class="msg warn">Ya hay ${same.length > 1 ? 'palabras' : 'una palabra'} así en el diccionario: ${same.map(x => `<a href="#p/${encodeURIComponent(x.id)}">${esc(x.headword)} (${esc(x.gloss_es)})</a>`).join(', ')}.
+          Si es la misma, ábrala y grabe ahí. Si es otra palabra, pulse otra vez «Seguir».</div>`;
+        dupOk = true; return;
+      }
+      const nid = `nueva-${stamp()}-${S.slug}`;
+      const ex = val('#ex'), tr = val('#tr');
+      const rec = {id: nid, is_new: true, headword: hw, gloss_es: val('#gl'), examples: ex || tr ? [{text: ex, translation_es: tr}] : [],
+        created: new Date().toISOString(), speaker: S.name};
+      await db.put('local', `${DICT()}|${nid}`, rec); LOCAL.set(`${DICT()}|${nid}`, rec); markRecordDirty(nid);
+      go(`#p/${encodeURIComponent(nid)}`, true);
+    } else if (kind === 'ejemplo'){
+      const key = `${DICT()}|${id}`;
+      const loc = LOCAL.get(key) || (w.is_new ? null : {id, is_new: false, added_examples: []});
+      if (w.is_new){ loc.examples = [...(loc.examples || []), {text: val('#ex'), translation_es: val('#tr')}]; }
+      else loc.added_examples = [...(loc.added_examples || []), {text: val('#ex'), translation_es: val('#tr'), created: new Date().toISOString()}];
+      await db.put('local', key, loc); LOCAL.set(key, loc); markRecordDirty(id);
+      const slots = slotsOf(wordOf(id)); go(`#p/${encodeURIComponent(id)}/${slots.length - 2}`, true);
+    } else {
+      const key = `${DICT()}|${id}`; const loc = LOCAL.get(key);
+      if (w.is_new){ loc.headword = val('#hw'); loc.gloss_es = val('#gl');
+        loc.examples = loc.examples.map((x, k) => ({...x, text: val('#ex' + k), translation_es: val('#tr' + k)})); }
+      else loc.added_examples = loc.added_examples.map((x, k) => ({...x, text: val('#ex' + k), translation_es: val('#tr' + k)}));
+      await db.put('local', key, loc); LOCAL.set(key, loc); markRecordDirty(id);
+      go(`#p/${encodeURIComponent(id)}`, true);
+    }
+  };
+}
+// the word's record (texts, recordings, speaker) is sent again whenever something in it changed
+async function markRecordDirty(id){ const k = `dirty|${DICT()}`; const s = new Set((await db.get('kv', k)) || []); s.add(id); await db.put('kv', k, [...s]); }
+
+// ---------- sending ----------
+const fileName = t => `${t.entry}_${t.role}_${S.slug}_${t.stamp}.${t.ext}`;
+const b64 = blob => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => ko(r.error); r.readAsDataURL(blob); });
+async function post(payload){
+  // sent as plain text so that the browser makes a simple request to Google, with no preflight
+  const r = await fetch(CONFIG.endpoint, {method: 'POST', body: JSON.stringify(payload), redirect: 'follow'});
+  const j = await r.json().catch(() => ({ok: false, error: `respuesta ${r.status}`}));
+  if (!j.ok) throw new Error(j.error || 'error');
+  return j;
+}
+const base = () => ({code: S.code, dict: DICT(), speaker: S.name, speaker_slug: S.slug, app_version: VERSION});
+function recordOf(id){
+  const w = wordOf(id);
+  return {dictionary: DICT(), list_built: LIST.dictionary.built, entry: id, is_new: !!w.is_new, speaker: S.name,
+    texts: {headword: w.headword, gloss_es: w.gloss_es, examples: w.examples.map(x => ({text: x.text, translation_es: x.translation_es}))},
+    added_examples: w.is_new ? [] : (w.added || []).map(x => ({text: x.text, translation_es: x.translation_es})),
+    recordings: Object.fromEntries(slotsOf(w).map(s => [s.role, takeOf(id, s.role)]).filter(([, t]) => t)
+      .map(([r, t]) => [r, {file: fileName(t), text_shown: t.text, recorded_at: t.recorded_at, duration_s: t.duration_s, peak: t.peak, tries: t.tries, mime: t.mime}])),
+    device: navigator.userAgent, app_version: VERSION, written_at: new Date().toISOString()};
+}
+async function renderSend(){
+  stopCamera(); bar('');
+  const list = unsent(); const dirty = (await db.get('kv', `dirty|${DICT()}`)) || [];
+  const words = new Set([...list.map(t => t.entry), ...dirty]);
+  const mb = list.reduce((a, t) => a + (t.blob ? t.blob.size : 0), 0) / 1e6;
+  $('#main').innerHTML = `
+    <a class="chip" href="#" style="text-decoration:none;display:inline-block">‹ Palabras</a>
+    <h2>Enviar</h2>
+    ${list.length || words.size ? `<p>${list.length} grabaciones de ${words.size} palabras por enviar${mb ? ` (unos ${mb < 1 ? mb.toFixed(1) : Math.round(mb)} MB)` : ''}.</p>
+      <p class="note">Mejor con wifi. Si se corta la conexión, vuelva a pulsar «Enviar»: solo se manda lo que falta.</p>
+      <button class="btn wide" type="button" id="go">Enviar ahora</button>
+      <div class="prog" hidden><i></i></div><div id="res"></div>`
+      : '<div class="msg ok">Todo está enviado.</div>'}`;
+  if (!$('#go')) return;
+  $('#go').onclick = async () => {
+    if (!navigator.onLine){ $('#res').innerHTML = '<div class="msg err">El teléfono no tiene conexión. Conéctese a internet y vuelva a intentarlo.</div>'; return; }
+    const btn = $('#go'); btn.disabled = true; btn.textContent = 'Enviando…'; $('.prog').hidden = false;
+    let done = 0, failed = 0, err = '';
+    const total = list.length + words.size;
+    const step = () => { $('.prog i').style.width = (100 * (done + failed) / total) + '%'; };
+    for (const t of list){
+      try {
+        await post({...base(), action: 'upload', kind: 'file', name: fileName(t), mime: t.mime, data: await b64(t.blob)});
+        t.sent = true; t.sent_at = new Date().toISOString();
+        const key = `${t.dict}|${t.entry}|${t.role}`; await db.put('takes', key, t); TAKES.set(key, t); done++;
+      } catch(e){ failed++; err = e.message; if (e.message === 'clave') break; }
+      step();
+    }
+    if (err !== 'clave'){
+      const left = new Set(dirty);
+      for (const id of words){
+        try { await post({...base(), action: 'upload', kind: 'record', name: `${id}_${S.slug}.json`, mime: 'application/json', text: JSON.stringify(recordOf(id), null, 1)});
+          left.delete(id); done++; }
+        catch(e){ failed++; err = e.message; left.add(id); }
+        step();
+      }
+      // records of words with recordings still unsent are sent again next time
+      for (const t of unsent()) left.add(t.entry);
+      await db.put('kv', `dirty|${DICT()}`, [...left]);
+    }
+    $('#res').innerHTML = err === 'clave'
+      ? '<div class="msg err">La clave de acceso no es correcta. Revísela en «Ajustes» (pulse su nombre arriba).</div>'
+      : failed ? `<div class="msg err">Se enviaron ${done} de ${total}; ${failed} no se pudieron enviar (${esc(err)}). Revise la conexión y pulse «Enviar» otra vez.</div>`
+      : `<div class="msg ok">Listo: se enviaron ${list.length} grabaciones de ${words.size} palabras. ¡Gracias!</div>`;
+    btn.remove();
+  };
+}
+
+// ---------- settings ----------
+async function renderSetup(){
+  stopCamera(); bar('');
+  const first = !S;
+  let dicts = (S && S.dicts) || [];
+  let used = '';
+  try { const e = await navigator.storage.estimate(); used = `${Math.round(e.usage / 1e6)} MB`; } catch(_){}
+  const sentWithBlob = [...TAKES.values()].filter(t => t.sent && t.blob);
+  $('#main').innerHTML = `
+    ${first ? '' : '<a class="chip" href="#" style="text-decoration:none;display:inline-block">‹ Palabras</a>'}
+    <h2>${first ? 'Bienvenida, bienvenido' : 'Ajustes'}</h2>
+    ${first ? '<p>Con esta página puede grabar en video palabras y ejemplos de su lengua para el diccionario parlante. Lo grabado se guarda en el teléfono y se envía cuando usted lo decide.</p>' : ''}
+    <form id="fm">
+      <label class="f" for="nm">Su nombre</label>
+      <input class="f" id="nm" required autocomplete="name" value="${esc(S ? S.name : '')}">
+      <p class="note">Aparecerá en el diccionario junto a sus grabaciones.</p>
+      <label class="f" for="cd">Clave de acceso</label>
+      <input class="f" id="cd" required autocomplete="off" autocapitalize="none" value="${esc(S ? S.code : '')}">
+      <p class="note">Se la da el equipo del diccionario.</p>
+      <div id="dcBox" ${dicts.length > 1 ? '' : 'hidden'}><label class="f" for="dc">Diccionario</label>
+      <select class="f" id="dc">${dicts.map(d => `<option value="${esc(d.code)}" ${S && S.dict === d.code ? 'selected' : ''}>${esc(d.title)}</option>`).join('')}</select></div>
+      <div id="res"></div>
+      <button class="btn wide" type="submit" style="margin-top:18px">${first ? 'Empezar' : 'Guardar'}</button>
+      ${first ? '<p class="note">La primera vez se necesita conexión a internet.</p>' : ''}
+    </form>
+    ${first ? '' : `<h3>En este teléfono</h3>
+      <dl class="kv"><dt>Grabaciones</dt><dd>${TAKES.size} (${unsent().length} por enviar)</dd>${used ? `<dt>Espacio usado</dt><dd>${used}</dd>` : ''}<dt>Versión</dt><dd>${VERSION}</dd></dl>
+      ${sentWithBlob.length ? `<button class="btn ghost wide" type="button" id="free">Liberar espacio: borrar del teléfono las ${sentWithBlob.length} grabaciones ya enviadas</button>
+        <p class="note">Las grabaciones enviadas ya están guardadas en el diccionario; aquí solo se borra la copia del teléfono.</p>` : ''}`}`;
+  $('#fm').onsubmit = async ev => {
+    ev.preventDefault();
+    const name = $('#nm').value.trim().replace(/\s+/g, ' '), code = $('#cd').value.trim();
+    if (!slugOf(name)){ $('#res').innerHTML = '<div class="msg err">Escriba su nombre.</div>'; return; }
+    // the code is checked with the team's script, which answers with the dictionaries it opens
+    if (!(S && S.code === code && !navigator.onLine)){
+      try { const r = await post({action: 'ping', code}); dicts = r.dictionaries; }
+      catch(e){ $('#res').innerHTML = e.message === 'clave' ? '<div class="msg err">La clave de acceso no es correcta.</div>'
+          : '<div class="msg err">No se pudo comprobar la clave: el teléfono necesita conexión a internet para esto.</div>'; return; }
+    }
+    // with several dictionaries, the speaker chooses one before starting
+    const sel = $('#dc'); const known = sel && [...sel.options].map(o => o.value).join() === dicts.map(d => d.code).join();
+    if (dicts.length > 1 && !known){
+      sel.innerHTML = dicts.map(d => `<option value="${esc(d.code)}">${esc(d.title)}</option>`).join('');
+      $('#dcBox').hidden = false; $('#res').innerHTML = '<div class="msg ok">Clave correcta. Elija el diccionario y pulse otra vez.</div>'; return;
+    }
+    const dict = dicts.length > 1 ? sel.value : dicts[0].code;
+    if (S && S.slug !== slugOf(name) && TAKES.size && unsent().length){
+      $('#res').innerHTML = '<div class="msg err">Hay grabaciones por enviar con el nombre anterior. Envíelas antes de cambiar el nombre.</div>'; return; }
+    S = {name, slug: slugOf(name), code, dict, dicts}; await db.put('kv', 'settings', S);
+    try { await openDict(); } catch(e){ $('#res').innerHTML = '<div class="msg err">No se pudo traer la lista de palabras. Revise la conexión y vuelva a intentarlo.</div>'; return; }
+    go('', true);
+  };
+  if ($('#free')) $('#free').onclick = async () => {
+    for (const t of sentWithBlob){ const k = `${t.dict}|${t.entry}|${t.role}`; const c = {...t, blob: null}; await db.put('takes', k, c); TAKES.set(k, c); }
+    renderSetup();
+  };
+}
+
+// ---------- start ----------
+// the word list: a fresh copy from the team's script when online, else the copy kept on the phone
+async function openDict(){
+  let l = null;
+  if (navigator.onLine) try { l = (await post({action: 'list', code: S.code, dict: S.dict})).list; await db.put('kv', `list|${S.dict}`, l); } catch(_){}
+  if (!l) l = await db.get('kv', `list|${S.dict}`);
+  if (!l || l.dictionary.code !== S.dict) throw new Error('list');
+  LIST = l; await loadState(); chrome();
+}
+function go(h, replace){ if (location.hash === h) route(); else if (replace) { history.replaceState(null, '', h || location.pathname); route(); } else location.hash = h; }
+async function route(){
+  const h = decodeURIComponent(location.hash);
+  if (REC && REC.state === 'recording') try { REC.onstop = null; REC.stop(); } catch(_){}
+  if (!S || h === '#ajustes') return renderSetup();
+  let m;
+  if (h === '#nueva') return renderForm('nueva');
+  if (h === '#enviar') return renderSend();
+  if ((m = h.match(/^#ejemplo\/(.+)$/))) return renderForm('ejemplo', m[1]);
+  if ((m = h.match(/^#texto\/(.+)$/))) return renderForm('texto', m[1]);
+  if ((m = h.match(/^#p\/([^/]+)(?:\/(\d+))?$/))) return renderWord(m[1], m[2] != null ? +m[2] : null);
+  renderList();
+}
+window.addEventListener('hashchange', route);
+document.addEventListener('visibilitychange', () => { if (document.hidden && !(REC && REC.state === 'recording')) stopCamera(); else if (!document.hidden && CUR && /^#p\//.test(location.hash) && !PENDING) route(); });
+
+(async () => {
+  try {
+    if (!window.MediaRecorder || !navigator.mediaDevices){ $('#main').innerHTML = '<div class="msg err">Este navegador no puede grabar video. Abra la página en Chrome.</div>'; return; }
+    CONFIG = await fetch('config.json').then(r => r.json());
+    S = (await db.get('kv', 'settings')) || null;
+    if (S) try { await openDict(); } catch(_){ S = null; }   // no list on the phone yet: set up again
+    chrome(); route();
+  } catch(e){
+    $('#main').innerHTML = '<div class="msg err">No se pudo abrir la grabadora. Revise la conexión y vuelva a cargar la página.</div>';
+  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
