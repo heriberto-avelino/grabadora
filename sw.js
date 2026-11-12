@@ -1,7 +1,7 @@
 // Offline support for the recorder: the page, its icons and config.json are kept on the phone, so
 // recording works without a connection (the word list is kept by the page itself, in IndexedDB). Each visit online fetches fresh copies first.
 // Uploads (POST to Google) and other sites are never touched by this worker.
-const SHELL = 'grabadora-2026-11-10.3';
+const SHELL = 'grabadora-2026-11-11';
 self.addEventListener('install', e => e.waitUntil((async () => {
   const c = await caches.open(SHELL);
   const files = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'config.json'];

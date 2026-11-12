@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Grabadora</title>
-<meta name="description" content="Grabadora de los Diccionarios Parlantes: grabe palabras y ejemplos en video o solo en audio para el diccionario de su lengua.">
+<title>Voz Profunda</title>
+<meta name="description" content="Voz Profunda, la voz del México profundo: grabadora de los Diccionarios Parlantes. Grabe palabras y ejemplos en video o solo en audio para el diccionario de su lengua.">
 <meta name="theme-color" content="#1E2433">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -104,19 +104,21 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 </head>
 <body>
 <header><div class="wrap"><div class="top">
-  <div class="t"><h1 id="h1">Grabadora</h1><p id="sub">Diccionarios Parlantes</p></div>
+  <div class="t"><h1 id="h1">Voz Profunda</h1><p id="sub">La voz del México profundo</p></div>
   <button class="chip" id="who" type="button" hidden></button>
 </div></div></header>
 <main class="wrap" id="main"><p class="note">Abriendo…</p></main>
 <div class="bar" id="bar" hidden><div class="wrap row" id="barIn"></div></div>
 
 <script>
-// Grabadora de los Diccionarios Parlantes. One page, no build step.
+// Voz Profunda («La voz del México profundo»): the recorder (grabadora) of the Diccionarios
+// Parlantes. Name chosen by Heriberto Avelino, 11 Nov 2026; the address stays …/grabadora/ so that
+// phones that installed it keep working. One page, no build step.
 // config.json holds only the address of the team's Google script. Nothing of the dictionaries is in
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-10.3';
+const VERSION = '2026-11-11';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -186,8 +188,8 @@ const unsent = () => [...TAKES.values()].filter(t => !t.sent);
 
 // ---------- header and bottom bar ----------
 function chrome(){
-  $('#h1').textContent = LIST ? `Grabadora · ${LIST.dictionary.title}` : 'Grabadora';
-  $('#sub').textContent = LIST ? `Diccionario parlante del ${LIST.dictionary.language_name}` : 'Diccionarios Parlantes';
+  $('#h1').textContent = LIST ? `Voz Profunda · ${LIST.dictionary.title}` : 'Voz Profunda';
+  $('#sub').textContent = LIST ? `Diccionario parlante del ${LIST.dictionary.language_name}` : 'La voz del México profundo';
   const who = $('#who'); who.hidden = !S; if (S) who.textContent = S.name;
   who.onclick = () => go('#ajustes');
 }
