@@ -118,7 +118,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-11';
+const VERSION = '2026-11-11.2';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -452,7 +452,8 @@ function renderForm(kind, id){
       const ex = val('#ex'), tr = val('#tr');
       const rec = {id: nid, is_new: true, headword: hw, gloss_es: val('#gl'), examples: ex || tr ? [{text: ex, translation_es: tr}] : [],
         created: new Date().toISOString(), speaker: S.name};
-      await db.put('local', `${DICT()}|${nid}`, rec); LOCAL.set(`${DICT()}|${nid}`, rec); markRecordDirty(nid);
+      await db.put('local', `${DICT()}|${nid}`, rec); LOCAL.set(`${DICT()}|${nid}`, rec);
+      await workMove('(nueva)', nid); await markRecordDirty(nid);
       go(`#p/${encodeURIComponent(nid)}`, true);
     } else if (kind === 'ejemplo'){
       const key = `${DICT()}|${id}`;
@@ -474,6 +475,52 @@ function renderForm(kind, id){
 // the word's record (texts, recordings, speaker) is sent again whenever something in it changed
 async function markRecordDirty(id){ const k = `dirty|${DICT()}`; const s = new Set((await db.get('kv', k)) || []); s.add(id); await db.put('kv', k, [...s]); }
 
+// ---------- working time per word ----------
+// For paying per word (Heriberto Avelino, 11 Nov 2026): how long each word took. Counted, one second at a
+// time, while the screen of that word is in front of the speaker and in use: its recording screen, or its
+// forms (new word, added example, corrected text). A second counts only when the page is visible and the
+// speaker touched or typed something in the last IDLE_S seconds, or a take is being recorded or played,
+// so a phone left on the table adds nothing. Time on the list or the settings belongs to no word and is
+// not counted. Kept on the phone (kv "time|<dict>|<entry>") and sent in the word's record (`work`).
+// The speaker sees none of this.
+const IDLE_S = 60;
+let WORK_KEY = null, LAST_INPUT = Date.now(), WORK_BUF = {};
+['pointerdown', 'keydown', 'input', 'touchstart'].forEach(ev => addEventListener(ev, () => { LAST_INPUT = Date.now(); }, {capture: true, passive: true}));
+const playing = () => [...document.querySelectorAll('video,audio')].some(v => !v.paused && !v.muted);
+setInterval(() => {
+  if (!WORK_KEY || document.hidden) return;
+  const busy = (REC && REC.state === 'recording') || playing();
+  if (!busy && Date.now() - LAST_INPUT > IDLE_S * 1000) return;
+  const b = WORK_BUF[WORK_KEY] || (WORK_BUF[WORK_KEY] = {screen: 0, forms: 0});
+  b[/^#(nueva|ejemplo|texto)/.test(location.hash) ? 'forms' : 'screen']++;
+}, 1000);
+// adds the buffered seconds to the stored totals; the time spent on «Palabra nueva» before the word
+// exists is kept under "(nueva)" and handed to the word when it is created (workMove)
+async function workFlush(){
+  const buf = WORK_BUF; WORK_BUF = {};
+  for (const [id, b] of Object.entries(buf)){
+    const k = `time|${DICT()}|${id}`, now = new Date().toISOString();
+    const t = (await db.get('kv', k)) || {first_opened_at: now, screen_s: 0, forms_s: 0};
+    t.screen_s += b.screen; t.forms_s += b.forms; t.last_active_at = now;
+    await db.put('kv', k, t);
+    const w = id !== '(nueva)' && LIST && wordOf(id);
+    if (w && (w.is_new || statusOf(w) !== 'none')) await markRecordDirty(id);
+  }
+}
+async function workMove(from, to){
+  await workFlush();
+  const kf = `time|${DICT()}|${from}`, t = await db.get('kv', kf);
+  if (t){ await db.put('kv', `time|${DICT()}|${to}`, t); await db.del('kv', kf); }
+}
+async function workOpen(id){
+  await workFlush(); WORK_KEY = id; LAST_INPUT = Date.now();
+  if (!id) return;
+  const k = `time|${DICT()}|${id}`;
+  if (!(await db.get('kv', k))) await db.put('kv', k, {first_opened_at: new Date().toISOString(), screen_s: 0, forms_s: 0});
+}
+setInterval(() => { workFlush().catch(() => {}); }, 15000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) workFlush().catch(() => {}); });
+
 // ---------- sending ----------
 const fileName = t => `${t.entry}_${t.role}_${S.slug}_${t.stamp}.${t.ext}`;
 const b64 = blob => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1] || ''); r.onerror = () => ko(r.error); r.readAsDataURL(blob); });
@@ -485,6 +532,8 @@ async function post(payload){
   return j;
 }
 const base = () => ({code: S.code, dict: DICT(), speaker: S.name, speaker_slug: S.slug, app_version: VERSION});
+// working time of each word, read from the phone before the records are written (recordOf is not async)
+let WORK_OF = new Map();
 function recordOf(id){
   const w = wordOf(id);
   return {dictionary: DICT(), list_built: LIST.dictionary.built, entry: id, is_new: !!w.is_new, speaker: S.name,
@@ -492,6 +541,7 @@ function recordOf(id){
     added_examples: w.is_new ? [] : (w.added || []).map(x => ({text: x.text, translation_es: x.translation_es})),
     recordings: Object.fromEntries(slotsOf(w).map(s => [s.role, takeOf(id, s.role)]).filter(([, t]) => t)
       .map(([r, t]) => [r, {file: fileName(t), media: t.media || 'video', text_shown: t.text, recorded_at: t.recorded_at, duration_s: t.duration_s, peak: t.peak, tries: t.tries, mime: t.mime}])),
+    work: WORK_OF.get(id) || null,
     access: S.new_only ? 'new words only' : 'word list and new words',
     device: navigator.userAgent, app_version: VERSION, written_at: new Date().toISOString()};
 }
@@ -525,6 +575,11 @@ async function renderSend(){
     }
     if (err !== 'clave'){
       const left = new Set(dirty);
+      await workFlush();
+      WORK_OF = new Map();
+      for (const id of words){ const t = await db.get('kv', `time|${DICT()}|${id}`);
+        if (t) WORK_OF.set(id, {first_opened_at: t.first_opened_at, last_active_at: t.last_active_at || null,
+          active_s: t.screen_s + t.forms_s, recording_screen_s: t.screen_s, forms_s: t.forms_s, idle_cutoff_s: IDLE_S}); }
       for (const id of words){
         try { await post({...base(), action: 'upload', kind: 'record', name: `${id}_${S.slug}.json`, mime: 'application/json', text: JSON.stringify(recordOf(id), null, 1)});
           left.delete(id); done++; }
@@ -615,8 +670,9 @@ function go(h, replace){ if (location.hash === h) route(); else if (replace) { h
 async function route(){
   const h = decodeURIComponent(location.hash);
   if (REC && REC.state === 'recording') try { REC.onstop = null; REC.stop(); } catch(_){}
+  let m = h.match(/^#(?:p|ejemplo|texto)\/([^/]+)/);
+  await workOpen(S && LIST ? (h === '#nueva' ? '(nueva)' : m ? m[1] : null) : null).catch(() => {});
   if (!S || h === '#ajustes') return renderSetup();
-  let m;
   if (h === '#nueva') return renderForm('nueva');
   if (h === '#enviar') return renderSend();
   if ((m = h.match(/^#ejemplo\/(.+)$/))) return renderForm('ejemplo', m[1]);
