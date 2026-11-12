@@ -118,7 +118,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-11.2';
+const VERSION = '2026-11-11.3';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -632,8 +632,11 @@ async function renderSetup(){
     const name = $('#nm').value.trim().replace(/\s+/g, ' '), code = $('#cd').value.trim();
     if (!slugOf(name)){ $('#res').innerHTML = '<div class="msg err">Escriba su nombre.</div>'; return; }
     // the code is checked with the team's script, which answers with the dictionaries it opens
+    // a personal code (PERSONA_<slug> in the script) belongs to one person: the script answers with
+    // that person's name, which is used instead of the name typed, so the sheet knows who sent what
+    let person = (S && S.code === code && S.person) || null;
     if (!(S && S.code === code && !navigator.onLine)){
-      try { const r = await post({action: 'ping', code}); dicts = r.dictionaries; }
+      try { const r = await post({action: 'ping', code}); dicts = r.dictionaries; person = r.person || null; }
       catch(e){ $('#res').innerHTML = e.message === 'clave' ? '<div class="msg err">La clave de acceso no es correcta.</div>'
           : '<div class="msg err">No se pudo comprobar la clave: el teléfono necesita conexión a internet para esto.</div>'; return; }
     }
@@ -644,10 +647,11 @@ async function renderSetup(){
       $('#dcBox').hidden = false; $('#res').innerHTML = '<div class="msg ok">Clave correcta. Elija el diccionario y pulse otra vez.</div>'; return;
     }
     const dict = dicts.length > 1 ? sel.value : dicts[0].code;
-    if (S && S.slug !== slugOf(name) && TAKES.size && unsent().length){
+    const who = person ? person.name : name, slug = person ? person.slug : slugOf(name);
+    if (S && S.slug !== slug && TAKES.size && unsent().length){
       $('#res').innerHTML = '<div class="msg err">Hay grabaciones por enviar con el nombre anterior. Envíelas antes de cambiar el nombre.</div>'; return; }
     const new_only = !!(dicts.find(d => d.code === dict) || {}).new_only;
-    S = {name, slug: slugOf(name), code, dict, dicts, new_only, media: (S && S.media) || 'video'}; await db.put('kv', 'settings', S);
+    S = {name: who, slug, person, code, dict, dicts, new_only, media: (S && S.media) || 'video'}; await db.put('kv', 'settings', S);
     try { await openDict(); } catch(e){ $('#res').innerHTML = '<div class="msg err">No se pudo traer la lista de palabras. Revise la conexión y vuelva a intentarlo.</div>'; return; }
     go('', true);
   };
