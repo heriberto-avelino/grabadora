@@ -94,6 +94,8 @@ ol.words li a{display:flex;align-items:center;gap:12px;padding:10px 0;border-bot
 .slots li[aria-current="true"]{background:var(--grana-soft)}
 .slots .k{font-size:.82rem;color:var(--stone)}
 .slots .x{font-weight:600;word-break:break-word}
+.slots.par .st:not(.done){border:0;border-radius:0;width:30px;font-weight:400}.lsth{margin:22px 0 0}
+.say .what.es{font-size:1.15rem;color:var(--ink);font-weight:600}
 .slots .x.ask{font-weight:400;font-style:italic;color:var(--stone)}.say .text.ask{font-style:italic}.say #typed{margin-top:10px;text-align:center}
 .meter{height:6px;border-radius:3px;background:var(--rule);overflow:hidden;margin:8px auto 0;width:min(62vw,260px)}
 .meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
@@ -119,7 +121,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-13.1';
+const VERSION = '2026-11-13.2';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -318,14 +320,16 @@ async function renderWord(id, at){
     <div class="stage${MEDIA()==='audio'?' audio':''}" id="stage"><video id="vid" playsinline muted class="mirror"></video>
       <div class="mic" aria-hidden="true">${ICON_MIC}</div><span class="live" id="live">● 0:00</span></div>
     <div class="meter"><i></i></div>
-    <div class="say"><div class="what">${PAR() ? esc(w.gloss_es) + ' · ' : ''}${esc(s.label)} · ${i+1} de ${slots.length}</div>
+    <div class="say"><div class="what${PAR() ? ' es' : ''}">${esc(s.label)}${PAR() ? `</div><div class="what">` : ' · '}${i+1} de ${slots.length}</div>
       ${s.ask ? `<div class="text long ask">Diga cómo se dice en ${esc(LIST.dictionary.language_name || 'su lengua')}</div>
         <input class="f" id="typed" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Si puede, escríbala aquí" value="${esc((w.typed || {})[s.role] || '')}">`
         : `<div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div>`}</div>
     <div class="controls" id="ctl"></div>
     <div id="out"></div>
-    <ul class="slots">${slots.map((x, k) => { const tk = takeOf(id, x.role);
-      return `<li data-k="${k}" aria-current="${k===i}"><span class="st ${tk?'done':''}">${tk?'✓':''}</span>
+    ${PAR() ? `<h3 class="lsth">Las ${slots.length} formas de este verbo</h3>
+      <p class="note" style="margin:2px 0 0">Esta lista es solo para ver cuáles ya grabó (✓) y para pasar a otra forma tocándola. Se graba arriba, con el botón rojo.</p>` : ''}
+    <ul class="slots${PAR() ? ' par' : ''}">${slots.map((x, k) => { const tk = takeOf(id, x.role);
+      return `<li data-k="${k}" aria-current="${k===i}"><span class="st ${tk?'done':''}">${tk?'✓':(PAR() ? k+1 : '')}</span>
         <div class="w"><div class="k">${esc(x.label)}${tk ? (tk.sent ? ' · enviada' : ' · por enviar') : ''}</div><div class="x${x.ask ? ' ask' : ''}">${esc(x.ask ? ((w.typed || {})[x.role] || 'falta: no está escrita') : x.text)}</div></div></li>`; }).join('')}</ul>
     <div class="row" style="margin-top:16px${PAR() ? ';display:none' : ''}">
       <button class="btn ghost" type="button" id="addEx">+ Agregar un ejemplo</button>
@@ -358,8 +362,8 @@ async function showLive(w, slots, i){
     <button class="btn wide" type="button" onclick="route()">Intentar de nuevo</button>`
     : `<div class="msg err">No se pudo abrir la cámara y el micrófono. Permita el acceso a la cámara y al micrófono para esta página (en el candado junto a la dirección) y vuelva a intentarlo.</div>
     <button class="btn wide" type="button" onclick="route()">Intentar de nuevo</button>`; return; }
-  ctl.innerHTML = `<button class="btn rec wide" type="button" id="recB">● Grabar</button>
-    <p class="note" style="text-align:center">Pulse «Grabar», diga el texto y pulse «Detener».</p>`;
+  ctl.innerHTML = `<button class="btn rec wide" type="button" id="recB">● Grabar${PAR() ? ' esta forma' : ''}</button>
+    <p class="note" style="text-align:center">${PAR() ? (slots[i].ask ? 'Pulse el botón rojo, diga la forma en voz alta y pulse «Detener».' : 'Pulse el botón rojo, lea la forma en voz alta y pulse «Detener».') : 'Pulse «Grabar», diga el texto y pulse «Detener».'}</p>`;
   $('#recB').onclick = () => startRec(w, slots, i);
 }
 function startRec(w, slots, i){
