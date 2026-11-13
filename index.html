@@ -94,6 +94,7 @@ ol.words li a{display:flex;align-items:center;gap:12px;padding:10px 0;border-bot
 .slots li[aria-current="true"]{background:var(--grana-soft)}
 .slots .k{font-size:.82rem;color:var(--stone)}
 .slots .x{font-weight:600;word-break:break-word}
+.slots .x.ask{font-weight:400;font-style:italic;color:var(--stone)}.say .text.ask{font-style:italic}.say #typed{margin-top:10px;text-align:center}
 .meter{height:6px;border-radius:3px;background:var(--rule);overflow:hidden;margin:8px auto 0;width:min(62vw,260px)}
 .meter i{display:block;height:100%;width:0;background:var(--ok);transition:width .08s}
 .prog{height:10px;border-radius:5px;background:var(--rule);overflow:hidden;margin:12px 0}
@@ -118,7 +119,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-11.3';
+const VERSION = '2026-11-13.1';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -163,14 +164,24 @@ function wordOf(id){
   const loc = LOCAL.get(`${DICT()}|${id}`);
   if (!base && !loc) return null;
   if (!base) return {...loc, id, is_new: true};
-  return {...base, examples: [...base.examples, ...((loc && loc.added_examples) || [])], added: (loc && loc.added_examples) || []};
+  return {...base, examples: [...base.examples, ...((loc && loc.added_examples) || [])], added: (loc && loc.added_examples) || [],
+    typed: (loc && loc.typed) || {}};
 }
+// ---------- paradigms (version 2026-11-13.1) ----------
+// A list whose dictionary block says mode "paradigms" (made by bin/make_paradigm_list.py) is a list of verbs,
+// each with the cells of its paradigm as `examples` ({cell, label, text}). For such a list the recorder asks
+// for one recording per cell and nothing else: no recording of the headword, the gloss or a translation, and
+// no «Palabra nueva» or «Agregar un ejemplo». A cell with no `text` is a form nobody has written yet: the
+// screen shows only the Spanish, asks the speaker to say the form, and offers a box to write it; what is
+// written is kept in the word's record as `typed_forms` (by role), never in the list.
+const PAR = () => !!(LIST && LIST.dictionary.mode === 'paradigms');
 function allWords(){
   const added = [...LOCAL.values()].filter(v => v.is_new).sort((a,b) => (b.created||'').localeCompare(a.created||''));
   return [...added.map(v => wordOf(v.id)), ...LIST.entries.map(e => wordOf(e.id))];
 }
 // the recordings a word asks for, in the order of the recording protocol
 function slotsOf(w){
+  if (PAR()) return w.examples.map((x, i) => ({role:`example_${i+1}`, label:x.label || `Forma ${i+1}`, text:x.text || '', ask:!x.text}));
   const s = [{role:'headword', label:'Palabra', text:w.headword}];
   if (w.gloss_es) s.push({role:'gloss_es', label:'Traducción', text:w.gloss_es});
   w.examples.forEach((x, i) => {
@@ -189,7 +200,7 @@ const unsent = () => [...TAKES.values()].filter(t => !t.sent);
 // ---------- header and bottom bar ----------
 function chrome(){
   $('#h1').textContent = LIST ? `Voz Profunda · ${LIST.dictionary.title}` : 'Voz Profunda';
-  $('#sub').textContent = LIST ? `Diccionario parlante del ${LIST.dictionary.language_name}` : 'La voz del México profundo';
+  $('#sub').textContent = LIST ? (PAR() ? `Verbos del ${LIST.dictionary.language_name}, forma por forma` : `Diccionario parlante del ${LIST.dictionary.language_name}`) : 'La voz del México profundo';
   const who = $('#who'); who.hidden = !S; if (S) who.textContent = S.name;
   who.onclick = () => go('#ajustes');
 }
@@ -276,7 +287,7 @@ function renderList(){
   main.innerHTML = `
     <input class="search" id="q" type="search" placeholder="Buscar en ${esc(LIST.dictionary.language_name)} o español" value="${esc(($('#q')||{}).value||'')}" autocomplete="off">
     <div class="tabs" role="group" aria-label="Mostrar">
-      ${[['todas',`Todas ${words.length}`],['por',`Por grabar ${count('none')}`],['inc',`Incompletas ${count('part')}`],['com',`Completas ${count('done')}`],['nuevas',`Nuevas ${words.filter(w=>w.is_new).length}`]]
+      ${[['todas',`Todas ${words.length}`],['por',`Por grabar ${count('none')}`],['inc',`Incompletas ${count('part')}`],['com',`Completas ${count('done')}`],...(PAR() ? [] : [['nuevas',`Nuevas ${words.filter(w=>w.is_new).length}`]])]
         .map(([k,l]) => `<button type="button" data-f="${k}" aria-pressed="${FILTER===k}">${l}</button>`).join('')}
     </div>
     ${list.length ? `<ol class="words">${list.map(w => { const st = statusOf(w);
@@ -287,7 +298,7 @@ function renderList(){
   main.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { FILTER = b.dataset.f; renderList(); });
   }
   const n = unsent().length;
-  bar(`<a class="btn ghost" href="#nueva" style="text-decoration:none">+ Palabra nueva</a>
+  bar(`${PAR() ? '' : '<a class="btn ghost" href="#nueva" style="text-decoration:none">+ Palabra nueva</a>'}
        <a class="btn${n?'':' ghost'}" href="#enviar" style="text-decoration:none">Enviar${n?` (${n})`:''}</a>`);
 }
 
@@ -307,14 +318,16 @@ async function renderWord(id, at){
     <div class="stage${MEDIA()==='audio'?' audio':''}" id="stage"><video id="vid" playsinline muted class="mirror"></video>
       <div class="mic" aria-hidden="true">${ICON_MIC}</div><span class="live" id="live">● 0:00</span></div>
     <div class="meter"><i></i></div>
-    <div class="say"><div class="what">${esc(s.label)} · ${i+1} de ${slots.length}</div>
-      <div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div></div>
+    <div class="say"><div class="what">${PAR() ? esc(w.gloss_es) + ' · ' : ''}${esc(s.label)} · ${i+1} de ${slots.length}</div>
+      ${s.ask ? `<div class="text long ask">Diga cómo se dice en ${esc(LIST.dictionary.language_name || 'su lengua')}</div>
+        <input class="f" id="typed" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Si puede, escríbala aquí" value="${esc((w.typed || {})[s.role] || '')}">`
+        : `<div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div>`}</div>
     <div class="controls" id="ctl"></div>
     <div id="out"></div>
     <ul class="slots">${slots.map((x, k) => { const tk = takeOf(id, x.role);
       return `<li data-k="${k}" aria-current="${k===i}"><span class="st ${tk?'done':''}">${tk?'✓':''}</span>
-        <div class="w"><div class="k">${esc(x.label)}${tk ? (tk.sent ? ' · enviada' : ' · por enviar') : ''}</div><div class="x">${esc(x.text)}</div></div></li>`; }).join('')}</ul>
-    <div class="row" style="margin-top:16px">
+        <div class="w"><div class="k">${esc(x.label)}${tk ? (tk.sent ? ' · enviada' : ' · por enviar') : ''}</div><div class="x${x.ask ? ' ask' : ''}">${esc(x.ask ? ((w.typed || {})[x.role] || 'falta: no está escrita') : x.text)}</div></div></li>`; }).join('')}</ul>
+    <div class="row" style="margin-top:16px${PAR() ? ';display:none' : ''}">
       <button class="btn ghost" type="button" id="addEx">+ Agregar un ejemplo</button>
       ${w.is_new || (w.added && w.added.length) ? '<button class="btn ghost" type="button" id="editTx">Corregir el texto</button>' : ''}
     </div>
@@ -326,6 +339,10 @@ async function renderWord(id, at){
     go(`#p/${encodeURIComponent(id)}/${CUR.i}`, true);
   });
   $('#addEx').onclick = () => go(`#ejemplo/${encodeURIComponent(id)}`);
+  if ($('#typed')) $('#typed').oninput = async () => { const key = `${DICT()}|${id}`, loc = LOCAL.get(key) || {};
+    const v = $('#typed').value.replace(/\s+/g, ' ').trim(); loc.typed = {...(loc.typed || {})}; if (v) loc.typed[s.role] = v; else delete loc.typed[s.role];
+    await db.put('local', key, loc); LOCAL.set(key, loc); markRecordDirty(id);
+    const li = $('#main').querySelector(`.slots li[data-k="${i}"] .x`); if (li) li.textContent = v || 'falta: no está escrita'; };
   if ($('#editTx')) $('#editTx').onclick = () => go(`#texto/${encodeURIComponent(id)}`);
   if (t) showSaved(w, slots, i, t); else await showLive(w, slots, i);
 }
@@ -537,7 +554,8 @@ let WORK_OF = new Map();
 function recordOf(id){
   const w = wordOf(id);
   return {dictionary: DICT(), list_built: LIST.dictionary.built, entry: id, is_new: !!w.is_new, speaker: S.name,
-    texts: {headword: w.headword, gloss_es: w.gloss_es, examples: w.examples.map(x => ({text: x.text, translation_es: x.translation_es}))},
+    texts: {headword: w.headword, gloss_es: w.gloss_es, examples: w.examples.map(x => PAR() ? {cell: x.cell, label: x.label, text: x.text} : {text: x.text, translation_es: x.translation_es})},
+    ...(PAR() ? {typed_forms: w.typed || {}} : {}),
     added_examples: w.is_new ? [] : (w.added || []).map(x => ({text: x.text, translation_es: x.translation_es})),
     recordings: Object.fromEntries(slotsOf(w).map(s => [s.role, takeOf(id, s.role)]).filter(([, t]) => t)
       .map(([r, t]) => [r, {file: fileName(t), media: t.media || 'video', text_shown: t.text, recorded_at: t.recorded_at, duration_s: t.duration_s, peak: t.peak, tries: t.tries, mime: t.mime}])),
