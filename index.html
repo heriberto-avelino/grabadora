@@ -95,6 +95,7 @@ ol.words li a{display:flex;align-items:center;gap:12px;padding:10px 0;border-bot
 .slots .k{font-size:.82rem;color:var(--stone)}
 .slots .x{font-weight:600;word-break:break-word}
 .slots.par .st:not(.done){border:0;border-radius:0;width:30px;font-weight:400}.lsth{margin:22px 0 0}
+.lnk{background:none;border:0;padding:8px 4px;margin-top:4px;color:var(--stone);text-decoration:underline;font:inherit;font-size:.9rem;cursor:pointer}.lnk[hidden],#diffBox[hidden]{display:none}.slots .said{font-weight:400;font-style:italic;color:var(--stone)}
 .say .what.es{font-size:1.15rem;color:var(--ink);font-weight:600}
 .slots .x.ask{font-weight:400;font-style:italic;color:var(--stone)}.say .text.ask{font-style:italic}.say #typed{margin-top:10px;text-align:center}
 .meter{height:6px;border-radius:3px;background:var(--rule);overflow:hidden;margin:8px auto 0;width:min(62vw,260px)}
@@ -121,7 +122,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-13.3';
+const VERSION = '2026-11-13.4';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -176,6 +177,9 @@ function wordOf(id){
 // no «Palabra nueva» or «Agregar un ejemplo». A cell with no `text` is a form nobody has written yet: the
 // screen shows only the Spanish, asks the speaker to say the form, and offers a box to write it; what is
 // written is kept in the word's record as `typed_forms` (by role), never in the list.
+// «Yo lo digo diferente» (version 2026-11-13.4): under a written form, for a speaker who would not say it as
+// written. It opens the same box; the speaker writes the form as they say it and records THAT. It lands in
+// the same `typed_forms`: for a cell that had a form, a typed form means "the speaker says it differently".
 const PAR = () => !!(LIST && LIST.dictionary.mode === 'paradigms');
 function allWords(){
   const added = [...LOCAL.values()].filter(v => v.is_new).sort((a,b) => (b.created||'').localeCompare(a.created||''));
@@ -323,14 +327,17 @@ async function renderWord(id, at){
     <div class="say"><div class="what${PAR() ? ' es' : ''}">${esc(s.label)}${PAR() ? `</div><div class="what">` : ' · '}${i+1} de ${slots.length}</div>
       ${s.ask ? `<div class="text long ask">Diga cómo se dice en ${esc(LIST.dictionary.language_name || 'su lengua')}</div>
         <input class="f" id="typed" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Si puede, escríbala aquí" value="${esc((w.typed || {})[s.role] || '')}">`
-        : `<div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div>`}</div>
+        : `<div class="text${s.text.length > 28 ? ' long' : ''}">${esc(s.text)}</div>
+          ${PAR() ? `<button type="button" class="lnk" id="diff"${(w.typed || {})[s.role] ? ' hidden' : ''}>Yo lo digo diferente</button>
+          <div id="diffBox"${(w.typed || {})[s.role] ? '' : ' hidden'}><input class="f" id="typed" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Escriba cómo lo dice usted" value="${esc((w.typed || {})[s.role] || '')}">
+            <p class="note" style="margin:6px 0 0">Grabe la forma como usted la dice. Si se equivocó, borre lo que escribió.</p></div>` : ''}`}</div>
     <div class="controls" id="ctl"></div>
     <div id="out"></div>
     ${PAR() ? `<h3 class="lsth">Las ${slots.length} formas de este verbo</h3>
       <p class="note" style="margin:2px 0 0">Esta lista es solo para ver cuáles ya grabó (✓) y para pasar a otra forma tocándola. Se graba arriba, con el botón rojo.</p>` : ''}
     <ul class="slots${PAR() ? ' par' : ''}">${slots.map((x, k) => { const tk = takeOf(id, x.role);
       return `<li data-k="${k}" aria-current="${k===i}"><span class="st ${tk?'done':''}">${tk?'✓':(PAR() ? k+1 : '')}</span>
-        <div class="w"><div class="k">${esc(x.label)}${tk ? (tk.sent ? ' · enviada' : ' · por enviar') : ''}</div><div class="x${x.ask ? ' ask' : ''}">${esc(x.ask ? ((w.typed || {})[x.role] || 'falta: no está escrita') : x.text)}</div></div></li>`; }).join('')}</ul>
+        <div class="w"><div class="k">${esc(x.label)}${tk ? (tk.sent ? ' · enviada' : ' · por enviar') : ''}</div><div class="x${x.ask ? ' ask' : ''}">${esc(x.ask ? ((w.typed || {})[x.role] || 'falta: no está escrita') : x.text)}${!x.ask && (w.typed || {})[x.role] ? `<span class="said"> · usted dice: ${esc(w.typed[x.role])}</span>` : ''}</div></div></li>`; }).join('')}</ul>
     <div class="row" style="margin-top:16px${PAR() ? ';display:none' : ''}">
       <button class="btn ghost" type="button" id="addEx">+ Agregar un ejemplo</button>
       ${w.is_new || (w.added && w.added.length) ? '<button class="btn ghost" type="button" id="editTx">Corregir el texto</button>' : ''}
@@ -346,7 +353,10 @@ async function renderWord(id, at){
   if ($('#typed')) $('#typed').oninput = async () => { const key = `${DICT()}|${id}`, loc = LOCAL.get(key) || {};
     const v = $('#typed').value.replace(/\s+/g, ' ').trim(); loc.typed = {...(loc.typed || {})}; if (v) loc.typed[s.role] = v; else delete loc.typed[s.role];
     await db.put('local', key, loc); LOCAL.set(key, loc); markRecordDirty(id);
-    const li = $('#main').querySelector(`.slots li[data-k="${i}"] .x`); if (li) li.textContent = v || 'falta: no está escrita'; };
+    const li = $('#main').querySelector(`.slots li[data-k="${i}"] .x`);
+    if (li && s.ask) li.textContent = v || 'falta: no está escrita';
+    else if (li){ let sp = li.querySelector('.said'); if (!sp){ sp = document.createElement('span'); sp.className = 'said'; li.appendChild(sp); } sp.textContent = v ? ` · usted dice: ${v}` : ''; } };
+  if ($('#diff')) $('#diff').onclick = () => { $('#diff').hidden = true; $('#diffBox').hidden = false; $('#typed').focus(); };
   if ($('#editTx')) $('#editTx').onclick = () => go(`#texto/${encodeURIComponent(id)}`);
   if (t) showSaved(w, slots, i, t); else await showLive(w, slots, i);
 }
