@@ -121,7 +121,7 @@ dl.kv dt{color:var(--stone)} dl.kv dd{margin:0}
 // this page: after the access code is checked, the script hands out the dictionaries that code opens
 // and their word lists (made by make_recorder_list.py, kept in the team's Drive). The phone keeps a
 // copy of the list for use without a connection.
-const VERSION = '2026-11-13.2';
+const VERSION = '2026-11-13.3';
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fold = s => (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/['’ꞌʔ]/g,'').replace(/\s+/g,' ').trim();
@@ -394,18 +394,22 @@ function playBlob(blob){
 }
 function review(w, slots, i){
   const p = PENDING;
-  const warn = p.duration_s < 0.6 ? 'La grabación es muy corta. ¿Se grabó todo?'
+  // no signal at all (peak under 0.003): the microphone is off or muted. Such a take cannot be kept: there
+  // is nothing in it. (13 Nov 2026: a test take with the laptop's microphone off was kept and sent, peak 0.)
+  const silent = p.peak < .003;
+  const warn = silent ? 'No se oyó nada: el micrófono está apagado o silenciado. Esta grabación no tiene sonido y no se puede guardar. Encienda el micrófono y grabe otra vez.'
+    : p.duration_s < 0.6 ? 'La grabación es muy corta. ¿Se grabó todo?'
     : p.peak > .97 ? 'La voz llegó demasiado fuerte y puede oírse distorsionada. Aleje un poco el teléfono y grabe otra vez.'
     : p.peak < .05 ? 'La voz se oye muy baja. Acérquese un poco al teléfono y grabe otra vez.' : '';
-  $('#out').innerHTML = warn ? `<div class="msg warn">${warn}</div>` : '';
+  $('#out').innerHTML = warn ? `<div class="msg ${silent ? 'err' : 'warn'}">${warn}</div>` : '';
   $('#ctl').innerHTML = `<div class="row"><button class="btn ghost" type="button" id="pl">▶ Escuchar</button>
     <button class="btn ghost" type="button" id="again">↺ Otra vez</button></div>
-    <button class="btn okb wide" type="button" id="keep" style="margin-top:10px">✓ Me quedo con esta</button>`;
+    ${silent ? '' : '<button class="btn okb wide" type="button" id="keep" style="margin-top:10px">✓ Me quedo con esta</button>'}`;
   playBlob(p.blob);
   $('#pl').onclick = () => playBlob(p.blob);
   stageAs(p.media);
   $('#again').onclick = () => { PENDING = null; $('#out').innerHTML = ''; showLive(w, slots, i); };
-  $('#keep').onclick = async () => {
+  if ($('#keep')) $('#keep').onclick = async () => {
     $('#keep').disabled = true;
     const s = slots[i], key = `${DICT()}|${w.id}|${s.role}`;
     const take = {dict: DICT(), entry: w.id, role: s.role, text: s.text, blob: p.blob, media: p.media, mime: p.blob.type, ext: extOf(p.blob.type),
